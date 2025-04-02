@@ -11,12 +11,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import com.utd.ti.soa.esb_service.model.User;
 import com.utd.ti.soa.esb_service.utils.Auth;
+
+import reactor.core.publisher.Mono;
 
 
 @RestController
@@ -41,7 +44,7 @@ public class ESBController {
 
         // Enviar la solicitud al servicio externo con el token
         String response = webClient.post()
-                .uri("http://users:3003/api/v1/users/create")
+                .uri("http://users.railway.internal:3003/api/v1/users/create")
                 .header(HttpHeaders.AUTHORIZATION, token)
                 .bodyValue(user)
                 .retrieve()
@@ -65,7 +68,7 @@ public class ESBController {
     }
         try {
             String response = webClient.get()
-                .uri("http://users:3003/api/v1/users/all") 
+                .uri("http://users.railway.internal:3003/api/v1/users/all") 
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .retrieve()
                 .bodyToMono(String.class)
@@ -88,7 +91,7 @@ public class ESBController {
     }
     try {
         String response = webClient.patch()
-                .uri("http://users:3003/api/v1/users/" + id)  // Aquí se corrige la URI
+                .uri("http://users.railway.internal:3003/api/v1/users/" + id)  // Aquí se corrige la URI
                 .header(HttpHeaders.AUTHORIZATION, token)
                 .bodyValue(user)
                 .retrieve()
@@ -100,9 +103,9 @@ public class ESBController {
     } catch (Exception e) {
         return ResponseEntity.status(500).body("Error interno: " + e.getMessage());
     }
+    
 }
-
-
+    
     @PatchMapping("/user/{id}/status")
     public ResponseEntity<String> deleteStatus(@PathVariable String id, @RequestBody User user,
             @RequestHeader(HttpHeaders.AUTHORIZATION) String token) {
@@ -111,7 +114,7 @@ public class ESBController {
         }
         try {
             String response = webClient.patch()
-                    .uri("http://users:3003/api/v1/users/" + id + "/status")
+                    .uri("http://users.railway.internal:3003/api/v1/users/" + id + "/status")
                     .header(HttpHeaders.AUTHORIZATION, token)
                     .bodyValue(user)
                     .retrieve()
@@ -123,6 +126,22 @@ public class ESBController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error interno: " + e.getMessage());
         }
+    }
+    @PostMapping("/login")
+    public Mono<ResponseEntity<String>> loginUser(@RequestBody User user) {
+    return webClient.post()
+            .uri("http://users.railway.internal:3003/api/v1/users/login")
+            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .bodyValue(user)
+            .retrieve()
+            .onStatus(HttpStatus::is4xxClientError, response -> 
+                Mono.error(new RuntimeException("Credenciales incorrectas")))
+            .onStatus(HttpStatus::is5xxServerError, response -> 
+                Mono.error(new RuntimeException("Error en el servidor")))
+            .bodyToMono(String.class)
+            .map(ResponseEntity::ok)
+            .onErrorResume(e -> Mono.just(ResponseEntity.status(500).body("Error: " + e.getMessage())));
+
     }
 }
 
